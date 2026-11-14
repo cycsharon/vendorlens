@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VendorLens · AI supplier risk reviews for banks</title>
+  <meta name="description" content="VendorLens reads AI suppliers' due-diligence questionnaires, checks every answer against Hong Kong rules, and shows a bank's risk team where to look first.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2314213d'/%3E%3Ccircle cx='14' cy='14' r='7' stroke='%230f9aa8' stroke-width='3' fill='none'/%3E%3Cpath d='M19 19l6 6' stroke='%230f9aa8' stroke-width='3.5' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a href="#/" class="brand" aria-label="VendorLens home"><span class="logo">◎</span><span>VendorLens</span></a>
+    <nav class="steps" aria-label="Main">
+      <a href="#/" data-route="">Dashboard</a>
+      <a href="#/add" data-route="add">+ Review a supplier</a>
+      <a href="#/library" data-route="library">Rules &amp; controls</a>
+      <a href="#/how" data-route="how">How it works</a>
+    </nav>
+    <span class="side bank-chip">Harbour Bank · Third-Party Risk</span>
+  </header>
+  <main id="app" tabindex="-1"></main>
+  <footer class="foot">
+    VendorLens prototype · BUHack 2.0 · Runs entirely in your browser: questionnaires never leave your device.
+    Harbour Bank and all suppliers are fictional. Rule summaries are paraphrased and are not legal advice.
+  </footer>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
