@@ -69,7 +69,7 @@ Static site, nothing to install.
 ```
 index.html               App shell
 style.css                Styles
-app.js                   How it works, dashboard, supplier findings, report, upload, rules, privacy
+app.js                   How it works, dashboard, supplier findings, report, upload, rules, data & privacy statement
 controls.js              5 HK rules, 24 controls, 8 supplier categories and their weights
 analyzer.js              Parse → match (BM25) → judge → score → decide; follow-up email; portfolio
 bm25.js                  Tokeniser, stemmer and BM25 ranking
