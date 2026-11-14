@@ -58,13 +58,6 @@ function howView() {
     </div>
   </section>
 
-  <section class="strip">
-    <div><b>${CONTROLS.length}</b><span>requirements checked on every supplier</span></div>
-    <div><b>${Object.keys(RULES).length}</b><span>Hong Kong rules, each finding linked to its source</span></div>
-    <div><b>${CATEGORIES.length}</b><span>supplier types, each weighted differently</span></div>
-    <div><b>&lt; 1 min</b><span>from questionnaire to findings and report</span></div>
-  </section>
-
   <section class="grid g3" style="margin-bottom:26px">
     <div class="card"><div class="eyebrow">The rule</div><h3>Banks must check their suppliers</h3><p class="muted">HKMA outsourcing rules (SA-2) and the HKMA's AI Principles require due diligence on outside suppliers, including AI vendors.</p></div>
     <div class="card"><div class="eyebrow">The problem</div><h3>Answers are read by hand</h3><p class="muted">Long questionnaires arrive by email and Excel. Specialists read every answer, then spend weeks chasing missing details.</p></div>
@@ -359,40 +352,49 @@ function library() {
 
 // ---------------- DATA & PRIVACY ----------------
 function privacy() {
-  const sec = (id, title, body) => `<section id="${id}"><h3>${title}</h3>${body}</section>`;
   return `
-  <div class="page-head"><div class="eyebrow">Data &amp; privacy</div><h1>Data collection and privacy statement</h1>
-  <p class="lead">What VendorLens collects, where it goes, and your rights. Written with the Personal Data (Privacy) Ordinance (Cap. 486) in mind.</p></div>
-  <div class="privacy-grid">
-    <aside class="card toc"><b>On this page</b>
-      ${[["summary", "In short"], ["collect", "What we collect"], ["purpose", "Why we use it"], ["storage", "Where it is kept"], ["share", "Who can see it"], ["retain", "How long we keep it"], ["security", "Security"], ["rights", "Your rights"], ["bank", "In a bank deployment"], ["disclaimer", "Disclaimer"]].map(([k, t]) => `<a href="#/privacy" data-act="jump" data-k="${k}">${t}</a>`).join("")}
-    </aside>
-    <div class="card prose">
-      ${sec("summary", "In short", `<div class="facts">
-        <div><b>0</b><span>accounts or sign-ups</span></div><div><b>0</b><span>cookies or trackers</span></div><div><b>0</b><span>files uploaded to a server</span></div><div><b>100%</b><span>processed in your browser</span></div></div>
-        <p>VendorLens checks questionnaires on your own device. We do not run a server that receives your files, and we cannot see what you check.</p>`)}
-      ${sec("collect", "1. What we collect", `<table><thead><tr><th>Information</th><th>Collected?</th><th>Notes</th></tr></thead><tbody>
-        <tr><td>Questionnaire answers you upload or paste</td><td>On your device only</td><td>Read by your browser to produce findings. Never sent to us.</td></tr>
-        <tr><td>Supplier name, service and category you enter</td><td>On your device only</td><td>Saved so the supplier appears on your dashboard.</td></tr>
-        <tr><td>Analyst decisions and notes</td><td>On your device only</td><td>Saved so they appear in the report.</td></tr>
-        <tr><td>Your name, email or login</td><td>No</td><td>There are no accounts.</td></tr>
-        <tr><td>Cookies, analytics or advertising IDs</td><td>No</td><td>We use none.</td></tr>
-        <tr><td>Technical request data (e.g. IP address)</td><td>By the host only</td><td>The demo is hosted on GitHub Pages, which may log basic request data under GitHub's own privacy statement. We do not receive it.</td></tr>
-      </tbody></table>`)}
-      ${sec("purpose", "2. Why we use it", `<p>Information you enter is used <b>only</b> to check the supplier's answers, show findings, draft the follow-up email and build the report. It is never used to train AI models, for marketing, or for any other purpose (PDPO Data Protection Principles 1 and 3).</p>`)}
-      ${sec("storage", "3. Where it is kept", `<p>In your browser's local storage on this device, under the key <code>vendorlens.v1</code>. It does not sync to other devices and is not backed up by us. Downloaded reports and CSV files are saved wherever you choose on your computer.</p>`)}
-      ${sec("share", "4. Who can see it", `<p>Only people using this browser on this device. We do not sell, share or transfer information to anyone, in Hong Kong or overseas, because we never receive it.</p>`)}
-      ${sec("retain", "5. How long we keep it", `<p>Until you delete it. To remove everything, use <b>Reset demo</b> on the dashboard, remove individual suppliers with <b>Remove</b>, or clear this site's data in your browser settings. Deletion is immediate and cannot be undone.</p>`)}
-      ${sec("security", "6. Security", `<ul><li>Served over HTTPS.</li><li>No database or server to breach: there is nothing stored on our side.</li><li>No third-party scripts, fonts or AI services are loaded, so your answers are never passed to an outside provider.</li><li>Anyone with access to this device and browser can see saved suppliers, so use a work device and lock your screen.</li></ul>`)}
-      ${sec("rights", "7. Your rights", `<p>Under the PDPO you may ask to access and correct personal data held about you (Data Protection Principle 6). Because VendorLens holds no personal data on its side, all data can be viewed, corrected and deleted directly by you in the app. Questions about this statement can be raised with the VendorLens team via our GitHub repository.</p>
-        <p><b>Please avoid entering customers' personal data.</b> Supplier questionnaires should describe the supplier's controls, not individual customers. If answers include staff names or contact details, handle them under your organisation's own policies.</p>`)}
-      ${sec("bank", "8. In a bank deployment", `<p>For production use, VendorLens is designed to run <b>inside the bank's own environment</b> (on-premises or the bank's private cloud in Hong Kong), so questionnaires never leave the bank. The bank would act as the data user under the PDPO, with VendorLens as its data processor bound by contract, in line with HKMA outsourcing guidance (SA-2). Access controls, audit logs and retention would follow the bank's own policies.</p>`)}
-      ${sec("disclaimer", "9. Disclaimer", `<ul><li><b>Demonstration only.</b> This is a prototype built for BUHack 2.0. ${BANK} and all suppliers shown are fictional; any resemblance to real organisations is coincidental.</li>
-        <li><b>Not legal advice.</b> Rule references are short paraphrased summaries, not legal text. Always refer to the official HKMA, PCPD and other sources.</li>
-        <li><b>People make the decisions.</b> VendorLens highlights gaps and suggests actions. Final decisions on any supplier must be made by qualified staff.</li></ul>
-        <p class="cite">Last updated 15 November 2026.</p>`)}
-    </div>
-  </div>`;
+  <article class="policy">
+    <h1>Privacy Policy</h1>
+    <p class="updated">Last updated: 15 November 2026</p>
+
+    <p>This Privacy Policy explains how VendorLens ("we", "us" or "our") handles information when you use the VendorLens website (the "Service"). By using the Service, you agree to the practices described below.</p>
+
+    <h2>1. Information we collect</h2>
+    <p>We do not ask you to create an account, and we do not collect your name, email address or other contact details.</p>
+    <p>When you use the Service, you may enter or upload information such as supplier names, service descriptions, questionnaire answers, analyst decisions and notes. This information is processed within your web browser and is not transmitted to us.</p>
+
+    <h2>2. How we use information</h2>
+    <p>Information you enter is used solely to provide the Service, namely to assess questionnaire answers, display findings, draft follow-up correspondence and generate reports. We do not use it for marketing, profiling or the training of any artificial intelligence model.</p>
+
+    <h2>3. Storage and retention</h2>
+    <p>Information you enter is stored in your browser's local storage on your device so that it remains available when you return. It is kept until you delete it. You may delete it at any time by selecting "Reset demo" on the Dashboard, removing an individual supplier, or clearing your browser's site data.</p>
+    <p>Reports and files you download are saved to a location you choose and are under your control.</p>
+
+    <h2>4. Disclosure of information</h2>
+    <p>We do not sell, rent, share or transfer your information to any third party, whether in Hong Kong or elsewhere.</p>
+
+    <h2>5. Cookies and analytics</h2>
+    <p>The Service does not use cookies, analytics tools, advertising technologies or third-party tracking scripts.</p>
+
+    <h2>6. Hosting</h2>
+    <p>The Service is hosted on GitHub Pages. GitHub may automatically collect limited technical information, such as IP addresses, in accordance with the GitHub Privacy Statement. We do not have access to this information.</p>
+
+    <h2>7. Security</h2>
+    <p>The Service is delivered over an encrypted HTTPS connection. As information is stored on your device, you are responsible for securing access to that device.</p>
+
+    <h2>8. Your rights</h2>
+    <p>Under the Personal Data (Privacy) Ordinance (Cap. 486), you may request access to, and correction of, personal data held about you. As we do not hold your information, you may view, correct or delete it directly within the Service.</p>
+    <p>Please do not enter the personal data of bank customers or other individuals into the Service.</p>
+
+    <h2>9. Disclaimer</h2>
+    <p>The Service is a prototype developed for BUHack 2.0 for demonstration purposes only. ${BANK} and all suppliers shown are fictional. Summaries of laws and regulatory guidance are provided for reference only and do not constitute legal advice. All decisions regarding suppliers remain the responsibility of qualified personnel.</p>
+
+    <h2>10. Changes to this policy</h2>
+    <p>We may update this Privacy Policy from time to time. The updated version will be indicated by the "Last updated" date above.</p>
+
+    <h2>11. Contact us</h2>
+    <p>If you have any questions about this Privacy Policy, please contact the VendorLens team through our GitHub repository.</p>
+  </article>`;
 }
 
 // ---------------- events ----------------
@@ -416,7 +418,6 @@ app.addEventListener("click", e => {
 render();
   } else if (act === "clear-filters") { e.preventDefault(); filters = { cat: "", rating: "", q: "", flags: false, pending: false }; render(); }
   else if (act === "filter-actions") { actionFilter = el.dataset.k; render(); document.getElementById("findings")?.scrollIntoView({ block: "start" }); }
-  else if (act === "jump") { e.preventDefault(); document.getElementById(el.dataset.k)?.scrollIntoView({ behavior: "smooth", block: "start" }); }
   else if (act === "load-sample") loadSample();
   else if (act === "analyse") analyseNew();
   else if (act === "copy-email") {
