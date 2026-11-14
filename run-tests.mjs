@@ -1,6 +1,6 @@
 // Run with:  node run-tests.mjs
 import { readFileSync } from "node:fs";
-import { parseQuestionnaire, mapQuestion, assessAnswer, analyseSupplier, portfolio, followUpEmail, inherentRisk } from "./analyzer.js";
+import { parseQuestionnaire, mapQuestion, assessAnswer, analyseSupplier, portfolio, followUpEmail, inherentRisk, findings } from "./analyzer.js";
 import { QUESTIONS, SAMPLE_SUPPLIERS } from "./samples.js";
 import { CONTROLS, CATEGORIES } from "./controls.js";
 
@@ -54,5 +54,9 @@ t("portfolio counts add up", p.counts.High + p.counts.Medium + p.counts.Low === 
 const ord = { High: 0, Medium: 1, Low: 2 };
 t("queue is sorted by rating, highest risk first", p.queue.every((r, i, a) => !i || ord[a[i - 1].rating] <= ord[r.rating]));
 
+const fc = findings(by("ChatterBox"));
+t("findings put red flags first", fc.actions[0].status === "redflag" && fc.actions[0].priority === "Urgent");
+t("every finding has answer, issue, action and source", fc.actions.every(a => a.issue && a.action && a.rules.length && a.actionType.label));
+t("approved supplier has no required actions", findings(by("CloudNest")).actions.length === 0);
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -276,3 +276,31 @@ pre.email { white-space: pre-wrap; background: #fafbfd; border: 1px solid var(--
 .matrix th:first-child { width: 26%; }
 .matrix td a { color: inherit; }
 .matrix th.sup { font-size: .72rem; color: var(--muted); }
+
+/* ---------- v2 ---------- */
+.center { text-align: center; justify-content: center; }
+.flow.three { grid-template-columns: repeat(3, 1fr); }
+@media (max-width: 900px) { .flow.three { grid-template-columns: 1fr; } }
+.example { border-top: 4px solid var(--red); }
+.ex-row { display: grid; grid-template-columns: 28px 1fr; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: .9rem; }
+.ex-row:last-child { border-bottom: 0; }
+.ex-row p { margin: 2px 0 0; color: var(--muted); }
+.ex-n { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--navy); color: #fff; font-weight: 800; font-size: .8rem; }
+.terms { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+@media (max-width: 900px) { .terms { grid-template-columns: 1fr; } }
+.terms > div { border: 1px solid var(--line); border-radius: 10px; padding: 12px; background: #fff; }
+.terms p { font-size: .84rem; color: var(--muted); margin: 8px 0 0; }
+.terms .rec { font-size: .9rem; }
+table.queue td { vertical-align: middle; }
+table.findings td { font-size: .86rem; }
+table.findings tr.pri-urgent td { background: #fff7f8; }
+table.findings tr.pri-urgent td:first-child { box-shadow: inset 4px 0 0 var(--red); }
+table.findings tr.pri-high td:first-child { box-shadow: inset 4px 0 0 #d35400; }
+table.findings tr.pri-medium td:first-child { box-shadow: inset 4px 0 0 var(--amber); }
+.prio { display: inline-block; font-size: .68rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; padding: 1px 7px; border-radius: 4px; margin-bottom: 4px; color: #fff; }
+.prio.urgent { background: var(--red); } .prio.high { background: #d35400; } .prio.medium { background: var(--amber); } .prio.low { background: #8792a6; }
+.act { display: inline-block; font-size: .72rem; font-weight: 800; padding: 1px 8px; border-radius: 99px; margin-bottom: 4px; }
+.act.redflag { background: var(--red); color: #fff; } .act.gap { background: var(--red-soft); color: var(--red); }
+.act.missing { background: #eef0f4; color: #3d4a63; } .act.weak { background: var(--amber-soft); color: #8a5b00; }
+.prose h3 { margin-top: 18px; } .prose p { color: var(--ink); }
+.foot a { color: var(--teal); }

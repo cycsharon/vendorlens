@@ -1,43 +1,95 @@
 // VendorLens - single-page app (no framework, no build step).
 
-import { CONTROLS, controlById, FAMILIES, CATEGORIES, categoryByKey, PROFILE, RULES } from "./controls.js";
-import { parseQuestionnaire, analyseSupplier, portfolio, followUpEmail, STATUS } from "./analyzer.js";
+import { CONTROLS, controlById, CATEGORIES, PROFILE, RULES } from "./controls.js";
+import { parseQuestionnaire, analyseSupplier, portfolio, followUpEmail, findings, REC_MEANING, RED_FLAG_MEANING } from "./analyzer.js";
 import { SAMPLE_SUPPLIERS, BANK } from "./samples.js";
 
 // ---------------- state ----------------
 const KEY = "vendorlens.v1";
-const fresh = () => ({ added: [], decisions: {}, hidden: [] });
+const fresh = () => ({ added: [], decisions: {} });
 let S = (() => { try { return { ...fresh(), ...JSON.parse(localStorage.getItem(KEY) || "{}") }; } catch { return fresh(); } })();
-const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch { /* blocked */ } };
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch { /* storage blocked */ } };
 
 const app = document.getElementById("app");
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const fmtDate = iso => new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 const addMonths = (iso, m) => { const d = new Date(iso); d.setMonth(d.getMonth() + m); return d.toISOString(); };
-const st = s => `<span class="st ${s}">${STATUS[s].label}</span>`;
-const ratingPill = r => `<span class="rating ${r}">${r}</span>`;
-const famOf = id => FAMILIES.find(f => f.key === controlById[id].fam);
+const ratingPill = r => `<span class="rating ${r}">${r} risk</span>`;
+const ruleNames = ids => ids.map(k => esc(RULES[k].short)).join("<br>");
 function toast(m) { const t = document.getElementById("toast"); t.textContent = m; t.classList.add("show"); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove("show"), 2600); }
 
-const allSuppliers = () => [...SAMPLE_SUPPLIERS, ...S.added].filter(s => !S.hidden.includes(s.id));
+const allSuppliers = () => [...SAMPLE_SUPPLIERS, ...S.added];
 let cache = null;
 const results = () => (cache ||= allSuppliers().map(analyseSupplier));
 const invalidate = () => { cache = null; };
 const resultById = id => results().find(r => r.supplier.id === id);
-const heatClass = (score, status) => status === "redflag" ? "h1" : score == null ? "h0" : score >= 80 ? "h5" : score >= 60 ? "h4" : score >= 40 ? "h3" : "h2";
 
 // ---------------- router ----------------
-const routes = { "": dashboard, supplier: supplierView, add: addView, library, how };
+const routes = { "": howView, dashboard, supplier: supplierView, add: addView, library, privacy };
 const after = {};
-async function render() {
+function render() {
   const [path, query] = location.hash.replace(/^#\/?/, "").split("?");
   const params = new URLSearchParams(query || "");
-  document.querySelectorAll(".topbar nav a").forEach(a => a.classList.toggle("active", a.dataset.route === path));
-  app.innerHTML = (routes[path] || dashboard)(params);
+  document.querySelectorAll(".topbar nav a").forEach(a => a.classList.toggle("active", a.dataset.route === path || (path === "supplier" && a.dataset.route === "dashboard")));
+  app.innerHTML = (routes[path] || howView)(params);
   after[path]?.(params);
 }
 window.addEventListener("hashchange", () => { render(); window.scrollTo(0, 0); });
 const go = r => { location.hash = "#/" + r; };
+
+function keyTerms() {
+  return `<div class="terms">
+    <div><span class="st redflag">Red flag</span><p>${esc(RED_FLAG_MEANING)}</p></div>
+    <div><span class="rec approve">Approve</span><p>${esc(REC_MEANING.approve)}</p></div>
+    <div><span class="rec conditions">Approve with conditions</span><p>${esc(REC_MEANING.conditions)}</p></div>
+    <div><span class="rec escalate">Escalate</span><p>${esc(REC_MEANING.escalate)}</p></div>
+    <div><span class="rec hold">Hold</span><p>${esc(REC_MEANING.hold)}</p></div>
+  </div>`;
+}
+
+// ---------------- HOW IT WORKS (landing) ----------------
+function howView() {
+  return `
+  <section class="hero">
+    <div>
+      <div class="eyebrow">For banks' third-party risk teams</div>
+      <h1>Review AI suppliers in minutes, not weeks.</h1>
+      <p class="lead">Every supplier that uses AI must be checked before a bank can work with it. VendorLens reads the supplier's questionnaire answers,
+      checks each one against Hong Kong rules, and tells your team exactly what is missing and what to ask for next.</p>
+      <div class="row" style="margin-top:18px"><a class="btn primary" href="#/dashboard">Open the demo dashboard →</a><a class="btn" href="#/add">Review a supplier</a></div>
+      <p class="cite" style="margin-top:10px">The demo uses a fictional bank and fictional suppliers. Nothing you upload leaves your browser.</p>
+    </div>
+    <div class="card example">
+      <div class="eyebrow">Example finding</div>
+      <div class="ex-row"><span class="ex-n">1</span><div><b>Supplier's answer</b><div class="quote">"We use anonymised customer conversations to fine-tune our language models."</div></div></div>
+      <div class="ex-row"><span class="ex-n">2</span><div><b>What's wrong</b><p>Bank customers' data is being used to train the supplier's AI. <span class="st redflag">Red flag</span></p></div></div>
+      <div class="ex-row"><span class="ex-n">3</span><div><b>Required action</b><p>Do not proceed. Require a written commitment that bank data will never be used for training, and deletion of data already used.</p></div></div>
+      <div class="ex-row"><span class="ex-n">4</span><div><b>Rule source</b><p>PDPO (DPP3: no new use without consent) · PCPD AI Framework</p></div></div>
+    </div>
+  </section>
+
+  <section class="grid g3" style="margin-bottom:26px">
+    <div class="card"><div class="eyebrow">The rule</div><h3>Banks must check their suppliers</h3><p class="muted">HKMA outsourcing rules (SA-2) and the HKMA's AI Principles require due diligence on outside suppliers, including AI vendors.</p></div>
+    <div class="card"><div class="eyebrow">The problem</div><h3>Answers are read by hand</h3><p class="muted">Long questionnaires arrive by email and Excel. Specialists read every answer, then spend weeks chasing missing details.</p></div>
+    <div class="card"><div class="eyebrow">The fix</div><h3>Clear actions in seconds</h3><p class="muted">VendorLens turns every answer into a finding: what's missing, what to require, and which rule says so.</p></div>
+  </section>
+
+  <section class="card" style="margin-bottom:26px">
+    <h2>How it works</h2>
+    <div class="flow three">
+      <div class="stepbox"><span class="num" style="background:var(--teal)">1</span><h3>Upload</h3><small>Add the supplier's questionnaire answers: CSV, copy-paste from Excel, any wording.</small></div>
+      <div class="stepbox"><span class="num" style="background:var(--navy)">2</span><h3>VendorLens checks</h3><small>Each answer is matched to a requirement from Hong Kong rules and judged: in place, vague, missing, or a red flag.</small></div>
+      <div class="stepbox"><span class="num" style="background:var(--red)">3</span><h3>You decide</h3><small>Get findings, required actions, a follow-up email and a professional report. Your analyst makes the final call.</small></div>
+    </div>
+  </section>
+
+  <section class="card" style="margin-bottom:26px">
+    <h2>Key terms</h2>
+    ${keyTerms()}
+  </section>
+
+  <div class="center"><a class="btn primary" href="#/dashboard">Open the demo dashboard →</a></div>`;
+}
 
 // ---------------- DASHBOARD ----------------
 let filters = { cat: "", rating: "" };
@@ -45,186 +97,214 @@ function dashboard() {
   const rs = results();
   const p = portfolio(rs);
   const shown = p.queue.filter(r => (!filters.cat || r.supplier.category === filters.cat) && (!filters.rating || r.rating === filters.rating));
-  const dueSoon = rs.filter(r => new Date(addMonths(r.supplier.assessed, r.reviewMonths)) < new Date(Date.now() + 90 * 864e5)).length;
   return `
-  <div class="intro">
-    <b>What you're looking at:</b> the risk team at <b>${BANK}</b> (fictional) must check every outside supplier that uses AI, as HKMA outsourcing rules require.
-    Each supplier filled in the bank's due-diligence questionnaire. <b>VendorLens read every answer</b>, matched it to ${CONTROLS.length} controls based on Hong Kong rules, and flagged what's risky.
-    <ol><li>Start with the <b>review queue</b> below: riskiest suppliers first.</li><li>Click a supplier to see every answer judged, red flags, conditions and a ready-to-send follow-up email.</li><li>Or <a href="#/add">review a new supplier</a> by uploading its questionnaire (a sample file is provided).</li></ol>
-  </div>
+  <div class="page-head"><div class="eyebrow">${BANK} · Third-party risk (demo)</div><h1>Supplier reviews</h1>
+    <p class="lead">${p.total} AI suppliers have sent back their questionnaires. VendorLens has checked every answer. Start at the top: the riskiest suppliers come first.</p></div>
 
-  <div class="grid g4" style="margin-bottom:18px">
-    <div class="card"><div class="kpi">${p.total}</div><div class="kpi-label">AI suppliers reviewed</div></div>
+  <div class="grid g3" style="margin-bottom:18px">
+    <div class="card"><div class="kpi">${p.total}</div><div class="kpi-label">Suppliers reviewed</div></div>
     <div class="card"><div class="kpi" style="color:var(--red)">${p.counts.High}</div><div class="kpi-label">High risk · ${p.counts.Medium} medium · ${p.counts.Low} low</div></div>
-    <div class="card"><div class="kpi" style="color:var(--red)">${p.redFlags}</div><div class="kpi-label">Red flags needing action</div></div>
-    <div class="card"><div class="kpi">${p.followUps}</div><div class="kpi-label">Follow-up questions drafted · ${dueSoon} reviews due in 90 days</div></div>
+    <div class="card"><div class="kpi" style="color:var(--red)">${p.redFlags}</div><div class="kpi-label">Red flags to resolve</div></div>
   </div>
 
   <div class="card" style="margin-bottom:18px">
-    <div class="spread"><div><h2 style="margin:0">Review queue</h2><small class="muted">Highest risk first. Click a row to open the full review.</small></div>
-      <div class="row"><button class="btn small" data-act="export-csv">Download results (CSV)</button><button class="btn small" data-act="reset" title="Remove suppliers you added and analyst decisions">Reset demo</button></div></div>
+    <div class="spread"><h2 style="margin:0">Review queue</h2>
+      <div class="row"><button class="btn small" data-act="export-csv">Download list (CSV)</button><button class="btn small" data-act="reset" title="Remove suppliers you added and analyst decisions">Reset demo</button></div></div>
     <div class="filters" style="margin-top:10px">
       <label class="field">Category<select id="f-cat"><option value="">All categories</option>${CATEGORIES.map(c => `<option value="${c.key}" ${filters.cat === c.key ? "selected" : ""}>${esc(c.name)}</option>`).join("")}</select></label>
       <label class="field">Risk<select id="f-rating"><option value="">All</option>${["High", "Medium", "Low"].map(r => `<option ${filters.rating === r ? "selected" : ""}>${r}</option>`).join("")}</select></label>
     </div>
-    <div style="overflow:auto"><table><thead><tr><th>Supplier</th><th>Category</th><th>Built-in risk</th><th class="num">Answer quality</th><th>Overall risk</th><th>Red flags</th><th>Recommendation</th><th>Analyst decision</th><th>Next review</th></tr></thead><tbody>
-      ${shown.map(r => { const d = S.decisions[r.supplier.id]; return `<tr class="clickable" data-href="supplier?id=${r.supplier.id}">
-        <td><b>${esc(r.supplier.name)}</b><br><small class="muted">${esc(r.supplier.service || "")}</small></td>
-        <td><small>${esc(r.category.name)}</small></td>
-        <td><small>${r.inherent.level}</small></td>
-        <td class="num">${r.controlScore}</td>
-        <td>${ratingPill(r.rating)}</td>
-        <td>${r.redFlags.length ? `<span class="st redflag">${r.redFlags.length}</span>` : `<span class="muted">–</span>`}</td>
-        <td><span class="rec ${r.recommendation.key}">${r.recommendation.short}</span></td>
+    <div style="overflow:auto"><table class="queue"><thead><tr><th>Supplier</th><th>Risk</th><th>Recommendation</th><th class="num">Actions needed</th><th>Analyst decision</th><th>Next review</th><th></th></tr></thead><tbody>
+      ${shown.map(r => { const d = S.decisions[r.supplier.id]; const f = findings(r); return `<tr class="clickable" data-href="supplier?id=${r.supplier.id}">
+        <td><b>${esc(r.supplier.name)}</b><br><small class="muted">${esc(r.category.name)} · ${esc(r.supplier.service || "")}</small></td>
+        <td>${ratingPill(r.rating)}${r.redFlags.length ? `<br><span class="st redflag" style="margin-top:4px">⚑ ${r.redFlags.length} red flag${r.redFlags.length > 1 ? "s" : ""}</span>` : ""}</td>
+        <td><span class="rec ${r.recommendation.key}">${r.recommendation.label}</span></td>
+        <td class="num"><b>${f.actions.length}</b></td>
         <td>${d ? `<small><b>${esc(d.label)}</b><br>${fmtDate(d.at)}</small>` : `<small class="muted">Pending</small>`}</td>
-        <td><small>${fmtDate(addMonths(r.supplier.assessed, r.reviewMonths))}</small></td></tr>`; }).join("") || `<tr><td colspan="9" class="muted">No suppliers match these filters.</td></tr>`}
+        <td><small>${fmtDate(addMonths(r.supplier.assessed, r.reviewMonths))}</small></td>
+        <td><span class="btn small">Open →</span></td></tr>`; }).join("") || `<tr><td colspan="7" class="muted">No suppliers match these filters.</td></tr>`}
     </tbody></table></div>
   </div>
 
-  <div class="card" style="margin-bottom:18px">
-    <h2 style="margin:0">Where each supplier is weak</h2><small class="muted">Each cell is the supplier's score for that area, weighted by what matters for its category. Click a row to drill in.</small>
-    <div style="overflow:auto;margin-top:10px"><table class="heat"><thead><tr><th class="sup">Supplier</th>${FAMILIES.map(f => `<th>${esc(f.name)}</th>`).join("")}</tr></thead><tbody>
-      ${p.queue.map(r => `<tr class="clickable" data-href="supplier?id=${r.supplier.id}"><td class="name">${esc(r.supplier.name)} ${ratingPill(r.rating)}</td>
-        ${r.families.map(f => { const red = Object.values(r.controls).some(c => c.status === "redflag" && controlById[c.id].fam === f.key);
-          return `<td class="${red ? "h1" : heatClass(f.score)}" title="${esc(f.name)}: ${f.score ?? "not relevant"}">${red ? "⚑ " : ""}${f.score ?? "–"}</td>`; }).join("")}</tr>`).join("")}
-    </tbody></table></div>
-    <div class="legend"><span><i class="h5"></i>80+ strong</span><span><i class="h4"></i>60–79 adequate</span><span><i class="h3"></i>40–59 weak</span><span><i class="h2"></i>below 40 gap</span><span><i class="h1"></i>⚑ red flag</span><span><i class="h0"></i>not relevant</span></div>
-  </div>
-
-  <div class="grid g2">
-    <div class="card"><h3>Most common gaps across all suppliers</h3><p class="cite">Controls that matter for the supplier's category but are weak, missing or red-flagged. Fix these through standard contract clauses.</p>
-      <div class="hbars gaps">${p.commonGaps.slice(0, 8).map(g => `<div class="hbar" title="${esc(g.suppliers.join(", "))}"><div class="hbar-label">${esc(g.name)}</div><div class="hbar-track"><div class="hbar-fill" style="width:${(g.count / Math.max(1, g.of)) * 100}%;background:${famOf(g.id).color}"></div></div><div class="hbar-val">${g.count} of ${g.of}</div></div>`).join("")}</div></div>
-    <div class="card"><h3>Risk matrix</h3><p class="cite">How risky the service is (rows) against how good the answers are (columns). The top-left corner is the danger zone.</p>${matrix(rs)}</div>
-  </div>`;
+  <details class="card"><summary>What do "red flag", "escalate" and "conditions" mean?</summary><div style="margin-top:12px">${keyTerms()}</div></details>`;
 }
-after[""] = () => {
+after.dashboard = () => {
   document.getElementById("f-cat").addEventListener("change", e => { filters.cat = e.target.value; render(); });
   document.getElementById("f-rating").addEventListener("change", e => { filters.rating = e.target.value; render(); });
 };
 
-function matrix(rs) {
-  const rows = [["High", "High / critical service"], ["Medium", "Medium-risk service"], ["Low", "Low-risk service"]];
-  const cols = [[0, 50, "Weak answers (<50)"], [50, 75, "Fair answers (50–74)"], [75, 101, "Good answers (75+)"]];
-  const lvl = r => (r.inherent.level === "Critical" || r.inherent.level === "High") ? "High" : r.inherent.level;
-  const tone = (ri, ci) => (ri + (2 - ci)) >= 3 ? "h2" : (ri + (2 - ci)) === 2 ? "h3" : "h4";
-  return `<table class="heat matrix"><thead><tr><th></th>${cols.map(c => `<th>${c[2]}</th>`).join("")}</tr></thead><tbody>
-    ${rows.map(([key, label], ri) => `<tr><th class="sup">${label}</th>${cols.map(([lo, hi], ci) => {
-      const here = rs.filter(r => lvl(r) === key && r.controlScore >= lo && r.controlScore < hi);
-      return `<td class="${tone(2 - ri, ci)}">${here.map(r => `<a href="#/supplier?id=${r.supplier.id}">${esc(r.supplier.name)}${r.redFlags.length ? " ⚑" : ""}</a>`).join("<br>") || "–"}</td>`; }).join("")}</tr>`).join("")}
-  </tbody></table>`;
-}
-
 // ---------------- SUPPLIER ----------------
 function supplierView(params) {
   const r = resultById(params.get("id"));
-  if (!r) return `<div class="card empty"><h2>Supplier not found</h2><a class="btn primary" href="#/">Back to dashboard</a></div>`;
+  if (!r) return `<div class="card empty"><h2>Supplier not found</h2><a class="btn primary" href="#/dashboard">Back to dashboard</a></div>`;
   const s = r.supplier, d = S.decisions[s.id];
-  const byFam = FAMILIES.map(f => ({ f, cs: CONTROLS.filter(c => c.fam === f.key).map(c => r.controls[c.id]).filter(c => c.weight > 0 || c.responses.length) })).filter(x => x.cs.length);
-  const strong = Object.values(r.controls).filter(c => c.weight && (c.status === "strong")).length;
+  const f = findings(r);
+  const reds = f.actions.filter(a => a.status === "redflag").length;
   return `
-  <div class="page-head spread"><div><a href="#/" class="muted">← Dashboard</a><h1 style="margin-top:6px">${esc(s.name)}</h1>
-    <p class="muted" style="margin:0">${esc(r.category.name)} · ${esc(s.service || "")} · questionnaire received ${fmtDate(s.assessed)}</p></div>
-    <div class="row"><button class="btn" data-act="download-report" data-id="${s.id}">Download report</button>${s.custom ? `<button class="btn danger" data-act="delete" data-id="${s.id}">Remove</button>` : ""}</div></div>
+  <div class="page-head spread"><div><a href="#/dashboard" class="muted">← All suppliers</a><h1 style="margin-top:6px">${esc(s.name)}</h1>
+    <p class="muted" style="margin:0">${esc(r.category.name)} · ${esc(s.service || "")} · answers received ${fmtDate(s.assessed)}</p></div>
+    <div class="row"><button class="btn primary" data-act="download-report" data-id="${s.id}">Download report</button>${s.custom ? `<button class="btn danger" data-act="delete" data-id="${s.id}">Remove</button>` : ""}</div></div>
 
-  <div class="grid g4" style="margin-bottom:18px">
-    <div class="card"><div class="kpi-label">Overall risk</div><div style="margin:6px 0">${ratingPill(r.rating)}</div><small class="muted">${esc(r.ratingReasons.join(" · "))}</small></div>
-    <div class="card"><div class="kpi-label">Recommendation</div><div class="rec ${r.recommendation.key}" style="font-size:1.05rem;margin:6px 0">${r.recommendation.label}</div><small class="muted">Re-review in ${r.reviewMonths} months</small></div>
-    <div class="card"><div class="kpi-label">Answer quality</div><div class="big-num">${r.controlScore}<small style="font-size:1rem">/100</small></div><small class="muted">${strong} strong · ${r.issues.length} to follow up · ${r.coverage.asked}/${r.coverage.needed} needed controls covered</small></div>
-    <div class="card"><div class="kpi-label">Built-in risk of the service</div><div class="big-num" style="font-size:1.6rem">${r.inherent.level}</div>
-      <small class="muted">${PROFILE.filter(p => s.profile?.[p.key]).map(p => esc(p.label)).join(" · ") || "No high-risk features"}</small></div>
+  <div class="grid g3" style="margin-bottom:18px">
+    <div class="card"><div class="kpi-label">Overall risk</div><div style="margin:8px 0">${ratingPill(r.rating)}</div>
+      <small class="muted">${r.inherent.level} built-in risk (${PROFILE.filter(p => s.profile?.[p.key]).map(p => esc(p.label.toLowerCase())).join(", ") || "no high-risk features"}), answer quality ${r.controlScore}/100${r.redFlags.length ? `, ${r.redFlags.length} red flag(s)` : ""}.</small></div>
+    <div class="card"><div class="kpi-label">Recommendation</div><div class="rec ${r.recommendation.key}" style="font-size:1.1rem;margin:8px 0">${r.recommendation.label}</div>
+      <small class="muted">${esc(REC_MEANING[r.recommendation.key])}</small></div>
+    <div class="card"><div class="kpi-label">Answers checked</div><div class="big-num">${f.actions.length + f.satisfactory.length}</div>
+      <small class="muted">${reds ? `<b style="color:var(--red)">${reds} red flag(s)</b> · ` : ""}${f.actions.length - reds} need action · ${f.satisfactory.length} satisfactory</small></div>
   </div>
 
-  ${r.redFlags.length ? `<div class="card" style="margin-bottom:18px;border-color:#f0c2c8"><h2 style="color:var(--red);margin-top:0">⚑ Red flags (${r.redFlags.length})</h2>
-    ${r.redFlags.map(f => `<div class="flag-box"><b>${esc(controlById[f.id].name)}:</b> ${esc(f.text)}<div class="quote">"${esc(f.quote)}"</div><div class="cite">Relevant rules: ${controlById[f.id].rules.map(k => esc(RULES[k].short)).join(" · ")}</div></div>`).join("")}</div>` : ""}
-
-  <div class="grid g2" style="margin-bottom:18px;align-items:start">
-    <div class="card"><h3>Summary for the risk committee</h3>${summary(r)}
-      <h3 style="margin-top:16px">Analyst decision</h3>
-      ${d ? `<div class="callout" style="margin-bottom:8px"><b>${esc(d.label)}</b> on ${fmtDate(d.at)}${d.note ? `: ${esc(d.note)}` : ""}</div>` : `<p class="cite">VendorLens recommends; a person decides.</p>`}
-      <input type="text" id="note" placeholder="Note (optional), e.g. approved subject to clause 7" style="margin-bottom:8px">
-      <div class="decision-row">${["Approve", "Approve with conditions", "Request more information", "Reject"].map(l => `<button class="btn small ${l === "Reject" ? "danger" : ""}" data-act="decide" data-id="${s.id}" data-label="${l}">${l}</button>`).join("")}</div></div>
-    <div class="card"><div class="spread"><h3 style="margin:0">Follow-up email (drafted)</h3><button class="btn small primary" data-act="copy-email" data-id="${s.id}">Copy email</button></div>
-      ${r.followUps.length ? `<p class="cite">Covers every important control that was weak, vague, missing or red-flagged. Replaces rounds of back-and-forth.</p><pre class="email">${esc(followUpEmail(r, BANK))}</pre>` : `<p class="muted">No follow-up needed: all important controls are adequately answered.</p>`}</div>
+  <div class="card" style="margin-bottom:18px">
+    <h2 style="margin-top:0">Findings and required actions</h2>
+    <p class="muted">Most urgent first. For each item: <b>(1)</b> what the supplier said, <b>(2)</b> what's missing against the rules, <b>(3)</b> what to ask for, and <b>(4)</b> where the requirement comes from.</p>
+    ${f.actions.length ? `<div style="overflow:auto"><table class="findings"><thead><tr><th style="width:15%">Topic</th><th style="width:22%">1 · Supplier's answer</th><th style="width:23%">2 · What's missing</th><th style="width:25%">3 · Required action</th><th style="width:15%">4 · Rule source</th></tr></thead><tbody>
+      ${f.actions.map(a => `<tr class="pri-${a.priority.toLowerCase()}">
+        <td><span class="prio ${a.priority.toLowerCase()}">${a.priority}</span><br><b>${esc(a.control.name)}</b></td>
+        <td>${a.answer ? `<div class="quote">"${esc(a.answer)}"</div>` : `<span class="muted">${a.question ? "(left blank)" : "(not asked)"}</span>`}</td>
+        <td>${a.status === "redflag" ? `<span class="st redflag">⚑ Red flag</span><br>` : ""}${esc(a.issue)}<div class="cite" style="margin-top:4px"><b>Expected:</b> ${esc(a.expected)}</div></td>
+        <td><span class="act ${a.actionType.cls}">${a.actionType.label}</span><br>${esc(a.action)}</td>
+        <td class="cite">${ruleNames(a.rules)}</td></tr>`).join("")}
+    </tbody></table></div>` : `<div class="callout">No actions needed: every important requirement is met.</div>`}
+    ${f.satisfactory.length ? `<details style="margin-top:14px"><summary>${f.satisfactory.length} requirements met</summary><table style="margin-top:8px"><tbody>
+      ${f.satisfactory.map(x => `<tr><td style="width:25%"><span class="st strong">Met</span> <b>${esc(x.control.name)}</b></td><td><div class="quote">"${esc(x.answer)}"</div></td><td class="cite" style="width:18%">${ruleNames(x.control.rules)}</td></tr>`).join("")}
+    </tbody></table></details>` : ""}
   </div>
 
-  ${r.conditions.length ? `<div class="card" style="margin-bottom:18px"><h3>Conditions to put in the contract before approval</h3><table><tbody>
-    ${r.conditions.map(c => `<tr><td>${c.critical ? `<span class="st gap">Must have</span>` : `<span class="st weak">Should have</span>`}</td><td><b>${esc(controlById[c.id].name)}</b><br>${esc(c.text)}</td><td class="cite">${controlById[c.id].rules.map(k => esc(RULES[k].short)).join("<br>")}</td></tr>`).join("")}
-  </tbody></table></div>` : ""}
-
-  <div class="card" style="margin-bottom:18px"><h2 style="margin-top:0">Every control, judged</h2>
-    <p class="muted">Each of the bank's questions was matched to a control. VendorLens judged the answer: does it confirm the control, give specifics and evidence, or is it vague, only planned, or a red flag? Importance depends on the supplier's category.</p>
-    ${byFam.map(({ f, cs }) => `<h3 style="margin-top:16px"><span class="swatch" style="background:${f.color}"></span> ${esc(f.name)}</h3>
-      <table><thead><tr><th style="width:22%">Control</th><th style="width:9%">Importance</th><th style="width:10%">Result</th><th>Supplier's answer and why</th><th style="width:16%">Rules</th></tr></thead><tbody>
-      ${cs.map(c => { const ctl = controlById[c.id], b = c.best;
-        return `<tr class="ctrl-row"><td><b>${esc(ctl.name)}</b><br><small class="muted">Good looks like: ${esc(ctl.good)}</small></td>
-          <td><small>${["Not needed", "Useful", "Important", "Critical"][c.weight]}</small></td><td>${st(c.status)}${c.score && c.status !== "redflag" ? `<br><small class="muted">${c.score}/100</small>` : ""}</td>
-          <td>${b ? `<div class="quote">"${esc(b.a || "(left blank)")}"</div><small class="mapped">Asked as: "${esc(b.q)}" · match ${Math.round(b.confidence * 100)}%</small>${b.assessment.signals.map(x => `<span class="sig ${x.t}">${esc(x.m)}</span>`).join("")}`
-            : c.weight ? `<span class="sig bad">The questionnaire didn't cover this. Ask the supplier.</span>` : `<small class="muted">Not needed for this category</small>`}</td>
-          <td class="cite">${ctl.rules.map(k => esc(RULES[k].short)).join("<br>")}</td></tr>`; }).join("")}
-      </tbody></table>`).join("")}
+  <div class="grid g2" style="align-items:start">
+    <div class="card"><div class="spread"><h3 style="margin:0">Follow-up email to the supplier</h3>${r.followUps.length ? `<button class="btn small primary" data-act="copy-email" data-id="${s.id}">Copy email</button>` : ""}</div>
+      ${r.followUps.length ? `<p class="cite">Drafted from the findings above. Send it once instead of weeks of back-and-forth.</p><pre class="email">${esc(followUpEmail(r, BANK))}</pre>` : `<p class="muted">No follow-up needed.</p>`}</div>
+    <div class="card"><h3 style="margin-top:0">Analyst decision</h3>
+      <p class="cite">VendorLens recommends. A person decides.</p>
+      ${d ? `<div class="callout" style="margin-bottom:10px"><b>${esc(d.label)}</b> on ${fmtDate(d.at)}${d.note ? `: ${esc(d.note)}` : ""}</div>` : ""}
+      <input type="text" id="note" placeholder="Note (optional), e.g. approved subject to clauses 4 and 7" style="margin-bottom:8px">
+      <div class="decision-row">${["Approve", "Approve with conditions", "Request more information", "Reject"].map(l => `<button class="btn small ${l === "Reject" ? "danger" : ""}" data-act="decide" data-id="${s.id}" data-label="${l}">${l}</button>`).join("")}</div>
+      <p class="cite" style="margin-top:12px">Your decision is added to the downloaded report.</p></div>
   </div>
-  ${r.unmapped ? `<div class="card"><h3>Questions not linked to a control (${r.unmapped})</h3><p class="cite">These didn't match any control in the library. An analyst should read them.</p>
+  ${r.unmapped ? `<div class="card" style="margin-top:18px"><h3>Other answers (${r.unmapped})</h3><p class="cite">These questions don't relate to the requirements VendorLens checks. Please read them yourself.</p>
     ${r.responses.filter(x => !x.controlId).map(x => `<p><b>${esc(x.q)}</b><br>${esc(x.a)}</p>`).join("")}</div>` : ""}`;
 }
 
-function summary(r) {
-  const s = r.supplier;
-  const bad = r.issues.slice(0, 4).map(c => controlById[c.id].name.toLowerCase());
-  const good = Object.values(r.controls).filter(c => c.weight >= 2 && c.status === "strong").slice(0, 3).map(c => controlById[c.id].name.toLowerCase());
-  return `<p>${esc(s.name)} provides a <b>${esc(r.category.name.toLowerCase())}</b> service with <b>${r.inherent.level.toLowerCase()}</b> built-in risk.
-    Its answers score <b>${r.controlScore}/100</b>, giving an overall rating of <b>${r.rating}</b>.</p>
-    ${r.redFlags.length ? `<p style="color:var(--red)"><b>Red flags:</b> ${r.redFlags.map(f => esc(f.text.toLowerCase())).join("; ")}.</p>` : ""}
-    ${good.length ? `<p><b>Strengths:</b> ${esc(good.join(", "))}.</p>` : ""}
-    ${bad.length ? `<p><b>Main gaps:</b> ${esc(bad.join(", "))}${r.issues.length > 4 ? `, and ${r.issues.length - 4} more` : ""}.</p>` : ""}
-    <p><b>Recommendation:</b> ${esc(r.recommendation.label)}. Re-review in ${r.reviewMonths} months.</p>`;
-}
-
+// ---------------- REPORT ----------------
 function reportHtml(r) {
-  const rows = CONTROLS.map(c => r.controls[c.id]).filter(c => c.weight).map(c => `<tr><td>${esc(controlById[c.id].name)}</td><td>${STATUS[c.status].label}</td><td>${esc(c.best?.a || "")}</td></tr>`).join("");
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(r.supplier.name)}: AI supplier review</title><style>body{font-family:Calibri,Arial,sans-serif;max-width:900px;margin:30px auto;color:#1b2433}table{border-collapse:collapse;width:100%}td,th{border:1px solid #ddd;padding:6px;font-size:13px;vertical-align:top}th{background:#14213d;color:#fff}</style></head><body>
-    <h1>${esc(r.supplier.name)}: AI supplier review</h1><p>${BANK} · Third-Party Risk Management · generated by VendorLens on ${fmtDate(new Date().toISOString())}</p>
-    ${summary(r)}<h2>Red flags</h2>${r.redFlags.length ? `<ul>${r.redFlags.map(f => `<li>${esc(f.text)}: "${esc(f.quote)}"</li>`).join("")}</ul>` : "<p>None.</p>"}
-    <h2>Conditions</h2>${r.conditions.length ? `<ul>${r.conditions.map(c => `<li>${esc(controlById[c.id].name)}: ${esc(c.text)}</li>`).join("")}</ul>` : "<p>None.</p>"}
-    <h2>Controls</h2><table><tr><th>Control</th><th>Result</th><th>Supplier answer</th></tr>${rows}</table>
-    <h2>Follow-up email</h2><pre style="white-space:pre-wrap">${esc(followUpEmail(r, BANK))}</pre>
-    <p style="font-size:11px;color:#777">Prototype output. Rule summaries are paraphrased and are not legal advice. A person must review before any decision.</p></body></html>`;
+  const s = r.supplier, f = findings(r), d = S.decisions[s.id];
+  const today = new Date().toISOString();
+  const ref = `VL-${s.id.slice(0, 6).toUpperCase()}-${today.slice(0, 10).replace(/-/g, "")}`;
+  const color = { High: "#c0392b", Medium: "#c98a0b", Low: "#1e8c5a" }[r.rating];
+  const prioColor = { Urgent: "#c0392b", High: "#d35400", Medium: "#c98a0b", Low: "#7f8c8d" };
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>${esc(s.name)}: Supplier AI Risk Assessment</title>
+<style>
+  @page { size: A4; margin: 16mm 14mm; }
+  * { box-sizing: border-box; }
+  body { font-family: Calibri, "Segoe UI", Arial, sans-serif; color: #1b2433; margin: 0; background: #eef1f6; font-size: 10.5pt; line-height: 1.45; }
+  .page { max-width: 210mm; margin: 20px auto; background: #fff; padding: 0 0 18mm; box-shadow: 0 2px 12px rgba(0,0,0,.08); }
+  .band { background: #14213d; color: #fff; padding: 16mm 14mm 10mm; }
+  .band .org { font-size: 9pt; letter-spacing: .14em; text-transform: uppercase; opacity: .8; }
+  .band h1 { font-size: 22pt; margin: 6px 0 2px; font-weight: 700; }
+  .band .sub { font-size: 12pt; opacity: .9; }
+  .meta { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; background: #f4f6fa; border-bottom: 1px solid #dde2ea; }
+  .meta div { padding: 8px 14px; font-size: 8.5pt; color: #5d6779; border-right: 1px solid #dde2ea; }
+  .meta b { display: block; color: #14213d; font-size: 10pt; }
+  .content { padding: 0 14mm; }
+  h2 { font-size: 13pt; color: #14213d; border-bottom: 2px solid #0f9aa8; padding-bottom: 4px; margin: 22px 0 10px; }
+  .summary { display: grid; grid-template-columns: 1.1fr 1fr 1fr; gap: 10px; margin-top: 16px; }
+  .box { border: 1px solid #dde2ea; border-radius: 6px; padding: 10px 12px; }
+  .box .lbl { font-size: 8pt; text-transform: uppercase; letter-spacing: .08em; color: #5d6779; }
+  .box .val { font-size: 15pt; font-weight: 700; margin-top: 2px; }
+  table { width: 100%; border-collapse: collapse; font-size: 9pt; }
+  th { background: #14213d; color: #fff; text-align: left; padding: 6px 7px; font-weight: 600; }
+  td { border-bottom: 1px solid #e3e7ee; padding: 6px 7px; vertical-align: top; }
+  tr { page-break-inside: avoid; }
+  .kv td:first-child { width: 32%; color: #5d6779; }
+  .pill { display: inline-block; padding: 1px 7px; border-radius: 10px; color: #fff; font-size: 7.5pt; font-weight: 700; }
+  .q { font-style: italic; color: #333; }
+  .flag { background: #fdecea; border-left: 4px solid #c0392b; padding: 8px 10px; margin-bottom: 6px; }
+  .sign { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 10px; }
+  .line { border-bottom: 1px solid #999; height: 26px; }
+  .small { font-size: 8pt; color: #6b7280; }
+  .noprint { text-align: center; margin: 14px 0 0; }
+  .noprint button { font: inherit; padding: 8px 18px; border-radius: 6px; border: 0; background: #0f9aa8; color: #fff; cursor: pointer; }
+  @media print { body { background: #fff; } .page { box-shadow: none; margin: 0; max-width: none; } .noprint { display: none; } }
+</style></head><body>
+<div class="noprint"><button onclick="window.print()">Print / Save as PDF</button></div>
+<div class="page">
+  <div class="band"><div class="org">${BANK} · Third-Party Risk Management</div><h1>Supplier AI Risk Assessment</h1><div class="sub">${esc(s.name)} · ${esc(r.category.name)}</div></div>
+  <div class="meta"><div>Reference<b>${ref}</b></div><div>Report date<b>${fmtDate(today)}</b></div><div>Answers received<b>${fmtDate(s.assessed)}</b></div><div>Classification<b>Confidential</b></div></div>
+  <div class="content">
+    <div class="summary">
+      <div class="box" style="border-top:4px solid ${color}"><div class="lbl">Overall risk</div><div class="val" style="color:${color}">${r.rating}</div><div class="small">${r.inherent.level} built-in risk · answer quality ${r.controlScore}/100</div></div>
+      <div class="box"><div class="lbl">Recommendation</div><div class="val" style="font-size:12.5pt">${esc(r.recommendation.label)}</div><div class="small">${esc(REC_MEANING[r.recommendation.key])}</div></div>
+      <div class="box"><div class="lbl">Findings</div><div class="val">${f.actions.length} actions</div><div class="small">${r.redFlags.length} red flag(s) · ${f.satisfactory.length} requirements met · re-review in ${r.reviewMonths} months</div></div>
+    </div>
+
+    <h2>1. Executive summary</h2>
+    <p>${esc(s.name)} will provide <b>${esc((s.service || r.category.name).toLowerCase())}</b>. The service has <b>${r.inherent.level.toLowerCase()}</b> built-in risk
+      (${PROFILE.filter(p => s.profile?.[p.key]).map(p => esc(p.label.toLowerCase())).join("; ") || "no high-risk features"}). The supplier's questionnaire answers were checked against ${CONTROLS.length} requirements drawn from Hong Kong rules.</p>
+    <p>${r.redFlags.length ? `<b>${r.redFlags.length} red flag(s)</b> were found. ` : "No red flags were found. "}${f.actions.length ? `${f.actions.length} item(s) require action before or as a condition of onboarding.` : "All important requirements are met."}
+      The recommendation is <b>${esc(r.recommendation.label.toLowerCase())}</b>.</p>
+
+    ${r.redFlags.length ? `<h2>2. Red flags</h2>${f.actions.filter(a => a.status === "redflag").map(a => `<div class="flag"><b>${esc(a.control.name)}:</b> ${esc(a.issue)}<div class="q">Supplier's answer: "${esc(a.answer)}"</div><div><b>Required:</b> ${esc(a.action)}</div></div>`).join("")}` : ""}
+
+    <h2>${r.redFlags.length ? 3 : 2}. Findings and required actions</h2>
+    ${f.actions.length ? `<table><tr><th style="width:8%">Priority</th><th style="width:14%">Topic</th><th style="width:22%">Supplier's answer</th><th style="width:22%">What's missing</th><th style="width:22%">Required action</th><th style="width:12%">Rule source</th></tr>
+      ${f.actions.map(a => `<tr><td><span class="pill" style="background:${prioColor[a.priority]}">${a.priority}</span></td><td><b>${esc(a.control.name)}</b></td><td class="q">${a.answer ? `"${esc(a.answer)}"` : (a.question ? "(left blank)" : "(not asked)")}</td><td>${esc(a.issue)}</td><td><b>${esc(a.actionType.label)}:</b> ${esc(a.action)}</td><td>${a.rules.map(k => esc(RULES[k].short)).join("<br>")}</td></tr>`).join("")}</table>` : "<p>No actions required.</p>"}
+
+    <h2>${r.redFlags.length ? 4 : 3}. Requirements met</h2>
+    ${f.satisfactory.length ? `<table><tr><th style="width:30%">Requirement</th><th>Supplier's answer</th></tr>${f.satisfactory.map(x => `<tr><td><b>${esc(x.control.name)}</b></td><td class="q">"${esc(x.answer)}"</td></tr>`).join("")}</table>` : "<p>None.</p>"}
+
+    <h2>${r.redFlags.length ? 5 : 4}. Follow-up questions sent to the supplier</h2>
+    ${r.followUps.length ? `<ol>${r.followUps.map(x => `<li><b>${esc(controlById[x.id].name)}:</b> ${esc(x.text)}</li>`).join("")}</ol>` : "<p>None.</p>"}
+
+    <h2>${r.redFlags.length ? 6 : 5}. Supplier profile</h2>
+    <table class="kv"><tr><td>Supplier</td><td>${esc(s.name)}</td></tr><tr><td>Service</td><td>${esc(s.service || "")}</td></tr><tr><td>Category</td><td>${esc(r.category.name)}</td></tr>
+      ${PROFILE.map(p => `<tr><td>${esc(p.label)}</td><td>${s.profile?.[p.key] ? "Yes" : "No"}</td></tr>`).join("")}</table>
+
+    <h2>${r.redFlags.length ? 7 : 6}. Analyst decision and sign-off</h2>
+    <table class="kv"><tr><td>Decision</td><td>${d ? `<b>${esc(d.label)}</b> (${fmtDate(d.at)})` : "Pending"}</td></tr><tr><td>Notes</td><td>${esc(d?.note || "")}</td></tr><tr><td>Next review due</td><td>${fmtDate(addMonths(s.assessed, r.reviewMonths))}</td></tr></table>
+    <div class="sign"><div><div class="line"></div><div class="small">Reviewing analyst (name, signature, date)</div></div><div><div class="line"></div><div class="small">Approver, Third-Party Risk (name, signature, date)</div></div></div>
+
+    <h2>${r.redFlags.length ? 8 : 7}. Method and rule sources</h2>
+    <p class="small">Each questionnaire answer was matched to a requirement and assessed for whether the control is in place, the level of detail and evidence, vague or non-committal wording, and specific red-flag patterns. Requirements are weighted by supplier category and combined with the service's built-in risk.
+    Rule sources: ${Object.values(RULES).map(x => esc(x.name)).join("; ")}.</p>
+    <p class="small"><b>Disclaimer:</b> generated by the VendorLens prototype for demonstration. ${BANK} and the supplier are fictional. Rule references are paraphrased summaries and do not constitute legal advice. Findings support, and do not replace, the judgement of a qualified reviewer.</p>
+  </div>
+</div></body></html>`;
 }
 
-// ---------------- ADD SUPPLIER ----------------
+// ---------------- REVIEW A SUPPLIER ----------------
 function addView() {
   return `
-  <div class="page-head"><div class="eyebrow">Review a new supplier</div><h1>Upload a supplier's questionnaire</h1>
-  <p class="lead">Tell VendorLens what the supplier does, then upload its answers. VendorLens matches every question to a control, judges every answer and produces a full review in seconds.</p></div>
+  <div class="page-head"><div class="eyebrow">Review a supplier</div><h1>Check a new supplier's answers</h1>
+  <p class="lead">Four quick steps. VendorLens does the reading and gives you findings, actions and a report.</p></div>
+  <div class="callout" style="margin-bottom:16px"><b>No file handy?</b> Click <b>"Use a sample questionnaire"</b> in step 4. It fills in a fictional chatbot supplier's answers so you can see the full result.</div>
   <div class="card">
     <div class="wizard-step"><h3><span class="n">1</span> Supplier details</h3>
       <div class="grid g2"><label class="field">Supplier name<input type="text" id="w-name" placeholder="e.g. QuickChat Ltd"></label>
-      <label class="field">What service will they provide?<input type="text" id="w-service" placeholder="e.g. WhatsApp chatbot for card enquiries"></label></div></div>
-    <div class="wizard-step"><h3><span class="n">2</span> Category <small class="muted" style="font-weight:400">decides which controls matter most</small></h3>
+      <label class="field">What will they do for the bank?<input type="text" id="w-service" placeholder="e.g. WhatsApp chatbot for card enquiries"></label></div></div>
+    <div class="wizard-step"><h3><span class="n">2</span> Type of supplier</h3><p class="cite">This decides which requirements matter most. A chatbot is checked hardest on telling customers it's AI; a cloud host on security and recovery.</p>
       <div class="cat-grid">${CATEGORIES.map((c, i) => `<label class="cat-opt"><input type="radio" name="w-cat" value="${c.key}" ${i === 0 ? "checked" : ""}><span><b>${esc(c.name)}</b><small>${esc(c.desc)}</small></span></label>`).join("")}</div></div>
-    <div class="wizard-step"><h3><span class="n">3</span> How risky is the service itself? <small class="muted" style="font-weight:400">tick all that apply</small></h3>
+    <div class="wizard-step"><h3><span class="n">3</span> What does the service involve?</h3><p class="cite">Tick all that apply. More ticks means the supplier's answers need to be stronger.</p>
       <div class="check-list">${PROFILE.map(p => `<label><input type="checkbox" class="w-prof" value="${p.key}"> ${esc(p.label)}</label>`).join("")}</div></div>
     <div class="wizard-step"><h3><span class="n">4</span> The supplier's answers</h3>
-      <p class="muted">Upload a <b>CSV</b> (columns: Question, Answer), <b>copy and paste straight from Excel</b>, or type <code>Q:</code> / <code>A:</code> lines. Any wording works: VendorLens matches the bank's own questions to its controls.</p>
+      <p class="cite">Upload a CSV with "Question" and "Answer" columns, copy and paste the two columns straight from Excel, or type <code>Q:</code> and <code>A:</code> lines. The bank's own wording is fine.</p>
       <div class="grid g2" style="gap:12px">
-        <div class="dropzone" id="drop"><b>Drop a .csv or .txt file</b><br><small class="muted">or</small><br><input type="file" id="w-file" accept=".csv,.txt,.tsv,text/csv,text/plain" style="margin-top:6px">
-          <div style="margin-top:10px" class="row" ><button class="btn small" data-act="load-sample">Use a sample questionnaire</button><a class="btn small" href="sample-questionnaire.csv" download>Download sample CSV</a></div></div>
-        <textarea id="w-text" placeholder="Question,Answer&#10;Do you use our data to train AI?,No. Client data is never used for training.&#10;..." style="min-height:190px"></textarea>
+        <div class="dropzone" id="drop"><b>Drop a .csv file here</b><br><small class="muted">or</small><br><input type="file" id="w-file" accept=".csv,.txt,.tsv,text/csv,text/plain" style="margin-top:6px">
+          <div style="margin-top:12px" class="row center"><button class="btn small primary" data-act="load-sample">Use a sample questionnaire</button><a class="btn small" href="sample-questionnaire.csv" download>Download sample CSV</a></div></div>
+        <textarea id="w-text" placeholder="Question,Answer&#10;Will our data be used to train AI?,No. Client data is never used for training.&#10;..." style="min-height:200px"></textarea>
       </div>
       <div id="w-preview" class="cite" style="margin-top:8px"></div></div>
-    <div class="row"><button class="btn primary" data-act="analyse">Analyse supplier →</button><span class="muted">Runs in your browser. Nothing is uploaded.</span></div>
+    <div class="row"><button class="btn primary" data-act="analyse">Check this supplier →</button><span class="muted">Runs in your browser. Nothing is uploaded.</span></div>
   </div>`;
 }
 after.add = () => {
   const drop = document.getElementById("drop"), ta = document.getElementById("w-text");
-  const preview = () => { const n = parseQuestionnaire(ta.value).length; document.getElementById("w-preview").textContent = n ? `${n} questions detected.` : ""; };
-  const load = f => f && f.text().then(t => { ta.value = t; preview(); toast(`Loaded ${f.name}`); });
+  const preview = () => { const n = parseQuestionnaire(ta.value).length; document.getElementById("w-preview").textContent = n ? `${n} questions found.` : ""; };
+  const load = file => file && file.text().then(t => { ta.value = t; preview(); toast(`Loaded ${file.name}`); });
   document.getElementById("w-file").addEventListener("change", e => load(e.target.files[0]));
   ["dragover", "dragenter"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("drag"); }));
   ["dragleave", "drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("drag"); }));
   drop.addEventListener("drop", e => load(e.dataTransfer.files[0]));
   ta.addEventListener("input", preview);
 };
-
 async function loadSample() {
   const t = await fetch("sample-questionnaire.csv").then(r => r.text()).catch(() => "");
   document.getElementById("w-text").value = t;
@@ -232,8 +312,8 @@ async function loadSample() {
   document.getElementById("w-service").value ||= "WhatsApp chatbot answering credit card enquiries";
   document.querySelector('input[name="w-cat"][value="chatbot"]').checked = true;
   document.querySelectorAll(".w-prof").forEach(c => { c.checked = ["personalData", "customerFacing", "overseas"].includes(c.value); });
-  document.getElementById("w-preview").textContent = `${parseQuestionnaire(t).length} questions detected.`;
-  toast("Sample loaded. Click \"Analyse supplier\"");
+  document.getElementById("w-preview").textContent = `${parseQuestionnaire(t).length} questions found.`;
+  toast("Sample loaded. Now click \"Check this supplier\"");
 }
 function analyseNew() {
   const name = document.getElementById("w-name").value.trim();
@@ -245,72 +325,41 @@ function analyseNew() {
     category: document.querySelector('input[name="w-cat"]:checked').value, profile, assessed: new Date().toISOString().slice(0, 10), responses };
   S.added.push(sup); save(); invalidate();
   go("supplier?id=" + sup.id);
-  toast(`${responses.length} answers analysed`);
+  toast(`${responses.length} answers checked`);
 }
 
-// ---------------- LIBRARY ----------------
+// ---------------- RULES & REQUIREMENTS ----------------
 function library() {
   return `
-  <div class="page-head"><div class="eyebrow">Transparent by design</div><h1>Rules and controls</h1>
-  <p class="lead">Every judgement VendorLens makes traces back to a control, and every control traces back to Hong Kong rules. Nothing is a black box.</p></div>
-  <div class="card" style="margin-bottom:18px"><h2 style="margin-top:0">The 5 Hong Kong rules we check against</h2>
-    <table><tbody>${Object.values(RULES).map(r => `<tr><td style="width:28%"><b>${esc(r.name)}</b></td><td>${esc(r.summary)}</td></tr>`).join("")}</tbody></table>
-    <p class="cite" style="margin-top:8px">Short paraphrased summaries for this prototype, not legal text or legal advice. Next: SFC GenAI circular, HKMA TM-G-1 / OR-2, ISO/IEC 42001 and ISO 27001.</p></div>
-  <div class="card" style="margin-bottom:18px"><h2 style="margin-top:0">${CONTROLS.length} controls</h2>
-    ${FAMILIES.map(f => `<h3 style="margin-top:14px"><span class="swatch" style="background:${f.color}"></span> ${esc(f.name)}</h3>
-      <table><tbody>${CONTROLS.filter(c => c.fam === f.key).map(c => `<tr><td style="width:24%"><b>${c.id} · ${esc(c.name)}</b></td><td>${esc(c.good)}<div class="cite">Follow-up if weak: ${esc(c.followUp)}</div></td><td class="cite" style="width:18%">${c.rules.map(k => esc(RULES[k].short)).join("<br>")}</td></tr>`).join("")}</tbody></table>`).join("")}</div>
-  <div class="card"><h2 style="margin-top:0">What matters for each category</h2><p class="muted">3 = critical, 2 = important, 1 = useful, blank = not needed. A chatbot is judged hard on disclosure and GenAI safety; a cloud host on security and recovery.</p>
-    <div style="overflow:auto"><table class="heat"><thead><tr><th class="sup">Control</th>${CATEGORIES.map(c => `<th title="${esc(c.name)}">${esc(c.name.split(/[ /(]/)[0])}</th>`).join("")}</tr></thead><tbody>
-    ${CONTROLS.map(c => `<tr><td class="name">${c.id} · ${esc(c.name)}</td>${CATEGORIES.map(cat => { const w = cat.weights[c.id]; return `<td class="${w === 3 ? "h2" : w === 2 ? "h3" : w === 1 ? "h4" : "h0"}">${w || ""}</td>`; }).join("")}</tr>`).join("")}
-    </tbody></table></div></div>`;
+  <div class="page-head"><div class="eyebrow">Rules &amp; requirements</div><h1>What VendorLens checks</h1>
+  <p class="lead">${CONTROLS.length} requirements, each linked to one or more of the Hong Kong rules below. Every finding shows its source.</p></div>
+  <div class="card" style="margin-bottom:18px"><h2 style="margin-top:0">Hong Kong rules</h2>
+    <table><tbody>${Object.values(RULES).map(r => `<tr><td style="width:30%"><b>${esc(r.name)}</b></td><td class="muted">${esc(r.summary)}</td></tr>`).join("")}</tbody></table>
+    <p class="cite" style="margin-top:8px">Short summaries, not legal text or legal advice.</p></div>
+  <div class="card"><h2 style="margin-top:0">Requirements</h2>
+    <table><thead><tr><th style="width:26%">Requirement</th><th>What a good answer shows</th><th style="width:20%">Source</th></tr></thead><tbody>
+    ${CONTROLS.map(c => `<tr><td><b>${esc(c.name)}</b></td><td>${esc(c.good)}</td><td class="cite">${ruleNames(c.rules)}</td></tr>`).join("")}
+    </tbody></table></div>`;
 }
 
-// ---------------- HOW IT WORKS ----------------
-function how() {
+// ---------------- PRIVACY & DISCLAIMER ----------------
+function privacy() {
   return `
-  <div class="page-head"><div class="eyebrow">How it works</div><h1>From a pile of questionnaires to clear decisions</h1>
-  <p class="lead">Under HKMA outsourcing rules, banks must check every outside supplier, and the HKMA's AI Principles add checks on AI vendors. Today that means reading long questionnaires by hand. VendorLens turns them into data.</p></div>
-  <div class="grid g2" style="margin-bottom:18px">
-    <div class="card"><h3>Today</h3><ol>
-      <li>Send each supplier a long questionnaire (often 100+ questions) by email and Excel.</li>
-      <li>Security, privacy, compliance and AI specialists each read the answers by hand.</li>
-      <li>Weeks of follow-up emails for vague or missing answers.</li>
-      <li>Each analyst judges differently; no view across all suppliers.</li>
-      <li>Repeat every year.</li></ol></div>
-    <div class="card"><h3>With VendorLens</h3><ol>
-      <li>Upload the questionnaire in any format and wording.</li>
-      <li>AI matches each question to a control and judges every answer in seconds.</li>
-      <li>Red flags, conditions and a follow-up email are drafted automatically.</li>
-      <li>Same ${CONTROLS.length} HK-mapped controls for every supplier; one dashboard for all.</li>
-      <li>Analysts spend their time on the riskiest suppliers, and a person makes every decision.</li></ol></div>
-  </div>
-  <div class="card" style="margin-bottom:18px"><h3>The engine, step by step</h3>
-    <div class="pipeline" style="grid-template-columns:repeat(5,1fr)">
-      ${[["1 Parse", "Reads CSV, Excel copy-paste or Q:/A: text"], ["2 Match", "BM25 search links each of the bank's questions to one of 24 controls"], ["3 Judge", "Checks stance, specifics, evidence, vague wording and red-flag patterns"], ["4 Score", "Weights controls by category; combines with the service's built-in risk"], ["5 Decide", "Rating, recommendation, conditions, follow-up email; a person approves"]]
-        .map(([a, b]) => `<div class="pipe done"><b>${a}</b>${b}</div>`).join("")}
-    </div></div>
-  <div class="grid g2" style="margin-bottom:18px">
-    <div class="card"><h3>How an answer is judged</h3><ul>
-      <li><b>Stance:</b> does it say yes, partly, only planned, or no?</li>
-      <li><b>Specifics:</b> frequencies, numbers, standards (ISO 27001, SOC 2), named roles, dates raise the score.</li>
-      <li><b>Evidence:</b> pointing to a report, policy or certificate raises it more.</li>
-      <li><b>Vague wording</b> ("regularly", "industry standard", "as appropriate") lowers it.</li>
-      <li><b>Shifting responsibility</b> ("we rely on our provider") lowers it.</li>
-      <li><b>Red flags:</b> e.g. bank data used to train AI, staff pasting code into ChatGPT, shared accounts, notification in 7+ days.</li></ul></div>
-    <div class="card"><h3>How the rating is set</h3><ul>
-      <li><b>Answer quality</b> = weighted average of control scores (critical controls count 3×).</li>
-      <li><b>Built-in risk</b> = what the service touches: customer data, customer-facing, decisions, critical, offshore.</li>
-      <li><b>Risk score</b> = built-in risk × weakness of answers, plus red flags.</li>
-      <li><b>Floors:</b> any red flag, or 3+ critical gaps, means High: serious gaps can't be averaged away.</li>
-      <li><b>Recommendation:</b> Approve · Approve with conditions · Escalate · Hold.</li></ul></div>
-  </div>
-  <div class="card"><h3>Prototype today, production tomorrow</h3><table><thead><tr><th>Part</th><th>Prototype</th><th>Production</th></tr></thead><tbody>
-    <tr><td>Matching questions</td><td>BM25 keyword retrieval, in the browser</td><td>Hybrid keyword + embedding search; learns from analyst corrections</td></tr>
-    <tr><td>Judging answers</td><td>Transparent rules: stance, specifics, evidence, vagueness, red flags</td><td>Privately hosted language model, with the same rules as a check and human review</td></tr>
-    <tr><td>Documents</td><td>CSV / Excel paste / text</td><td>Excel, PDF and Word questionnaires plus attached evidence</td></tr>
-    <tr><td>Rules</td><td>5 HK rules, paraphrased</td><td>Full rule texts maintained by compliance staff; SFC, ISO and more</td></tr>
-    <tr><td>Data</td><td>Stays in the browser</td><td>Bank-hosted or private HK cloud; integrates with vendor-risk systems</td></tr>
-  </tbody></table></div>`;
+  <div class="page-head"><div class="eyebrow">Privacy &amp; disclaimer</div><h1>Privacy statement and disclaimer</h1></div>
+  <div class="card prose">
+    <h3>Your data stays on your device</h3>
+    <p>VendorLens runs entirely in your web browser. Questionnaires you upload or paste are processed on your own device and are <b>not sent to any server</b>, including ours. We do not use cookies or tracking.</p>
+    <h3>What is stored, and how to delete it</h3>
+    <p>Suppliers you add and analyst decisions are saved in your browser's local storage so they are still there when you return. They never leave your device. To delete them, use <b>Reset demo</b> on the dashboard or clear your browser data.</p>
+    <h3>Personal data in questionnaires</h3>
+    <p>Supplier questionnaires should not normally contain customers' personal data. If they include staff names or contact details, handle them in line with the Personal Data (Privacy) Ordinance and your organisation's own policies.</p>
+    <h3>Demonstration only</h3>
+    <p>This is a prototype built for BUHack 2.0. ${BANK} and all suppliers shown are <b>fictional</b>; any resemblance to real organisations is coincidental.</p>
+    <h3>Not legal advice</h3>
+    <p>Rule references are short paraphrased summaries prepared for this prototype. They are not legal text and do not constitute legal or regulatory advice. Always refer to the official sources.</p>
+    <h3>People make the decisions</h3>
+    <p>VendorLens supports reviewers by highlighting gaps and suggesting actions. Final decisions on any supplier must be made by qualified staff.</p>
+  </div>`;
 }
 
 // ---------------- events ----------------
@@ -320,33 +369,32 @@ function download(name, text, type) {
   a.download = name; a.click();
 }
 app.addEventListener("click", e => {
-  const row = e.target.closest("[data-href]");
   const el = e.target.closest("[data-act]");
+  const row = e.target.closest("[data-href]");
   if (!el && row) { go(row.dataset.href); return; }
   if (!el) return;
   const act = el.dataset.act;
   if (act === "load-sample") loadSample();
   else if (act === "analyse") analyseNew();
   else if (act === "copy-email") {
-    const text = followUpEmail(resultById(el.dataset.id), BANK);
-    navigator.clipboard?.writeText(text).then(() => toast("Email copied"), () => toast("Select the text to copy it"));
+    navigator.clipboard?.writeText(followUpEmail(resultById(el.dataset.id), BANK)).then(() => toast("Email copied"), () => toast("Select the text to copy it"));
   } else if (act === "decide") {
     S.decisions[el.dataset.id] = { label: el.dataset.label, at: new Date().toISOString(), note: document.getElementById("note").value.trim() };
     save(); render(); toast(`Decision recorded: ${el.dataset.label}`);
   } else if (act === "download-report") {
     const r = resultById(el.dataset.id);
-    download(`${r.supplier.name.replace(/\W+/g, "-").toLowerCase()}-review.html`, reportHtml(r), "text/html");
+    download(`${r.supplier.name.replace(/\W+/g, "-").toLowerCase()}-ai-risk-assessment.html`, reportHtml(r), "text/html");
+    toast("Report downloaded. Open it and use Print to save as PDF");
   } else if (act === "export-csv") {
-    const head = ["Supplier", "Category", "Built-in risk", "Answer score", "Risk score", "Rating", "Red flags", "Recommendation", "Follow-ups", ...CONTROLS.map(c => c.id + " " + c.name)];
     const q = v => `"${String(v).replace(/"/g, '""')}"`;
-    const lines = results().map(r => [r.supplier.name, r.category.name, r.inherent.level, r.controlScore, r.riskScore, r.rating, r.redFlags.length, r.recommendation.label, r.followUps.length, ...CONTROLS.map(c => STATUS[r.controls[c.id].status].label)].map(q).join(","));
-    download("vendorlens-portfolio.csv", [head.map(q).join(","), ...lines].join("\n"), "text/csv");
+    const head = ["Supplier", "Category", "Service", "Risk", "Recommendation", "Red flags", "Actions needed", "Answer quality", "Analyst decision", "Next review"];
+    const lines = results().map(r => [r.supplier.name, r.category.name, r.supplier.service || "", r.rating, r.recommendation.label, r.redFlags.length, findings(r).actions.length, r.controlScore, S.decisions[r.supplier.id]?.label || "Pending", fmtDate(addMonths(r.supplier.assessed, r.reviewMonths))].map(q).join(","));
+    download("vendorlens-suppliers.csv", [head.map(q).join(","), ...lines].join("\n"), "text/csv");
   } else if (act === "delete") {
-    S.added = S.added.filter(s => s.id !== el.dataset.id); save(); invalidate(); go(""); toast("Supplier removed");
+    S.added = S.added.filter(s => s.id !== el.dataset.id); delete S.decisions[el.dataset.id]; save(); invalidate(); go("dashboard"); toast("Supplier removed");
   } else if (act === "reset") {
     S = fresh(); save(); invalidate(); render(); toast("Demo reset");
   }
 });
-// The scatter dots are SVG <g> elements, handled by the same [data-href] click above.
 
 render();

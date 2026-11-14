@@ -293,3 +293,62 @@ export function portfolio(results) {
     queue: [...results].sort((a, b) => ({ High: 0, Medium: 1, Low: 2 }[a.rating] - { High: 0, Medium: 1, Low: 2 }[b.rating]) || (b.redFlags.length - a.redFlags.length) || (b.riskScore - a.riskScore)),
   };
 }
+
+// ---------------- Findings: the 1-2-3-4 view ----------------
+// For every control that needs attention:
+//   (1) the supplier's answer  (2) what's missing against the rules
+//   (3) the required action    (4) the rule source
+export const REC_MEANING = {
+  approve: "The answers meet the bank's requirements. Onboard as normal.",
+  conditions: "Can be onboarded once the required actions are written into the contract, with deadlines.",
+  escalate: "Too many serious gaps for an analyst to approve alone. Send to the risk committee; the supplier must fix critical items first.",
+  hold: "A red flag was found. Pause onboarding until the supplier fixes it.",
+};
+export const RED_FLAG_MEANING = "An answer that shows a serious problem, not just a missing detail. For example, the supplier says it trains its AI on bank customers' data. Any red flag puts the supplier on hold.";
+
+const ACTION = {
+  redflag: { label: "Fix before onboarding", cls: "redflag" },
+  gap: { label: "Require before go-live", cls: "gap" },
+  missing: { label: "Ask the supplier", cls: "missing" },
+  weak: { label: "Request evidence", cls: "weak" },
+};
+
+export function findings(result) {
+  const out = [], ok = [];
+  for (const c of CONTROLS) {
+    const rc = result.controls[c.id];
+    if (!rc.weight) continue;
+    if (rc.status === "strong" || rc.status === "adequate") { ok.push({ id: c.id, control: c, status: rc.status, answer: rc.best?.a || "" }); continue; }
+    const b = rc.best, a = b?.a || "";
+    const sig = b?.assessment?.signals || [];
+    let issue, action;
+    if (rc.status === "redflag") {
+      issue = `${b.assessment.redFlag}.`;
+      action = `Do not proceed until fixed. Require ${c.fix}.`;
+    } else if (rc.status === "missing") {
+      issue = rc.responses.length ? "The supplier left this blank." : "The questionnaire did not cover this.";
+      action = `Ask the supplier: ${c.followUp}`;
+    } else if (rc.status === "gap") {
+      const st = b?.assessment?.stance;
+      issue = st === "planned" ? "Not in place yet: only planned." : st === "negative" ? "The supplier says this is not in place."
+        : st === "na" ? `The supplier says "not applicable", but this matters for a ${result.category.name.toLowerCase()} supplier.`
+        : "The answer does not show this control is in place.";
+      issue += " " + sig.filter(s => s.t !== "good" && !/not in place|only planned|not applicable/i.test(s.m)).map(s => s.m + ".").join(" ");
+      action = `Require ${c.fix}, as a contract condition with a deadline.`;
+    } else {
+      const warns = sig.filter(s => s.t !== "good").map(s => s.m);
+      const noEvidence = !sig.some(s => /evidence/i.test(s.m) && s.t === "good");
+      issue = (warns.length ? warns.slice(0, 2).join(". ") + "." : "The answer is too general to rely on.") + (noEvidence ? " No evidence provided." : "");
+      action = `Request evidence: ${c.evidence}.`;
+    }
+    out.push({
+      id: c.id, control: c, status: rc.status, weight: rc.weight,
+      priority: rc.status === "redflag" ? "Urgent" : rc.weight === 3 ? "High" : rc.weight === 2 ? "Medium" : "Low",
+      question: b?.q || null, answer: a, issue: issue.trim(), expected: c.good, action, actionType: ACTION[rc.status] || ACTION.weak,
+      rules: c.rules,
+    });
+  }
+  const order = { Urgent: 0, High: 1, Medium: 2, Low: 3 };
+  out.sort((x, y) => order[x.priority] - order[y.priority]);
+  return { actions: out, satisfactory: ok };
+}

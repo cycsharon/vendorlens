@@ -22,8 +22,11 @@ The demo opens pre-loaded with a fictional bank, **Harbour Bank**, and **10 fict
 2. **Match:** each of the bank's own questions is linked to one of **24 controls** in 7 areas, built on 5 Hong Kong rules.
 3. **Judge every answer:** does it confirm the control, give specifics and evidence, or is it vague, only planned, missing, or a **red flag**?
 4. **Score by category:** a chatbot is judged hardest on disclosure and GenAI safety, a credit model on bias and explainability, a cloud host on security and recovery. This is combined with the service's **built-in risk** (customer data, customer-facing, decisions, critical, offshore).
-5. **Decide:** a rating (High / Medium / Low), a recommendation (Approve · Approve with conditions · Escalate · Hold), contract conditions and a **ready-to-send follow-up email**. **A person makes every final decision.**
-6. **See the portfolio:** a review queue (riskiest first), a heatmap of suppliers × areas, the most common gaps across all suppliers, a risk matrix, and a CSV export.
+5. **Findings, in four parts:** for every item needing attention, **(1)** the supplier's answer, **(2)** what's missing against the rules, **(3)** the required action (fix before onboarding · require before go-live · request evidence · ask the supplier) and **(4)** the rule source.
+6. **Decide:** a rating (High / Medium / Low), a recommendation (Approve · Approve with conditions · Escalate · Hold), a **ready-to-send follow-up email** and a **professional assessment report** (print or save as PDF). **A person makes every final decision.**
+7. **Review queue:** all suppliers, riskiest first, with a CSV export.
+
+**Key terms.** *Red flag:* an answer that shows a serious problem, not just a missing detail (e.g. the supplier trains its AI on bank customers' data); any red flag means **Hold**. *Approve with conditions:* onboard once the required actions are written into the contract with deadlines. *Escalate:* too many serious gaps for an analyst to approve alone, so it goes to the risk committee.
 
 ## Hong Kong rules covered
 
@@ -59,14 +62,14 @@ Rule texts in the app are short paraphrased summaries for the prototype, **not l
 Static site, nothing to install.
 - **GitHub Pages:** Settings → Pages → *Deploy from a branch* → `main` / root.
 - **Locally:** `python3 -m http.server 8000`, then open `http://localhost:8000`.
-- **Tests (Node 18+):** `node run-tests.mjs` (30 tests: parsing, question matching, answer judging, red flags, ratings, follow-up emails, portfolio).
+- **Tests (Node 18+):** `node run-tests.mjs` (33 tests: parsing, question matching, answer judging, red flags, ratings, follow-up emails, portfolio).
 
 ## Files
 
 ```
 index.html               App shell
 style.css                Styles
-app.js                   Dashboard, supplier review, upload wizard, library, how-it-works
+app.js                   How it works, dashboard, supplier findings, report, upload, rules, privacy
 controls.js              5 HK rules, 24 controls, 8 supplier categories and their weights
 analyzer.js              Parse → match (BM25) → judge → score → decide; follow-up email; portfolio
 bm25.js                  Tokeniser, stemmer and BM25 ranking
